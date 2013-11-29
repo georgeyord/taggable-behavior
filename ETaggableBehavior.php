@@ -326,12 +326,12 @@ class ETaggableBehavior extends CActiveRecordBehavior {
 						'select' => "t.".$this->tagTablePk,
 						'params' => array(':tag' => $tag),
 					));
-					
+
 					if (! $this->tagTableCondition instanceof CDbExpression)
 						$findCriteria->addCondition("t.{$this->tagTableName} = :tag ");
 					else
 						$findCriteria->addCondition($this->tagTableCondition->__toString());
-					
+
 					if($this->getScopeCriteria()){
 						$findCriteria->mergeWith($this->getScopeCriteria());
 					}
@@ -346,8 +346,9 @@ class ETaggableBehavior extends CActiveRecordBehavior {
 
 				}
 			}
-
+            $type = isset($this->insertValues['type'])?$this->insertValues['type']:"NOTYPE";
 			if(!$this->getOwner()->getIsNewRecord()){
+                Yii::log("Delete all tags type: $type - Movie: ".$this->getOwner()->primaryKey);
 				// delete all present tag bindings if record is existing one
 				$this->deleteTags();
 			}
@@ -355,19 +356,19 @@ class ETaggableBehavior extends CActiveRecordBehavior {
 			// add new tag bindings and tags if there are any
 			if(!empty($this->tags)){
 				foreach($this->tags as $tag){
-					if(empty($tag)) return;
+					if(empty($tag)) continue;
 
 					// try to get existing tag
 					$findCriteria = new CDbCriteria(array(
 						'select' => "t.".$this->tagTablePk,
 						'params' => array(':tag' => $tag),
 					));
-					
+
 					if (! $this->tagTableCondition instanceof CDbExpression)
 						$findCriteria->addCondition("t.{$this->tagTableName} = :tag ");
 					else
 						$findCriteria->addCondition($this->tagTableCondition->__toString());
-						
+
 					if($this->getScopeCriteria()){
 						$findCriteria->mergeWith($this->getScopeCriteria());
 					}
@@ -388,13 +389,14 @@ class ETaggableBehavior extends CActiveRecordBehavior {
 					}
 
 					// bind tag to it's model
-					$builder->createInsertCommand(
+					$result = $builder->createInsertCommand(
 						$this->getTagBindingTableName(),
 						array(
 							$this->getModelTableFkName() => $this->getOwner()->primaryKey,
 							$this->tagBindingTableTagId => $tagId
 						)
 					)->execute();
+                    Yii::log("Rows: $result - Type: $type - Tag: $tag - Movie: ".$this->getOwner()->primaryKey);
 				}
 				$this->updateCount(+1);
 			}
@@ -637,21 +639,20 @@ class ETaggableBehavior extends CActiveRecordBehavior {
 	 * Delete all present tag bindings.
 	 * @return void
 	 */
-	protected function deleteTags() {
-		$this->updateCount(-1);
+    protected function deleteTags() {
+        $this->updateCount(-1);
+        $sql = "DELETE
+                 FROM `" . $this->getTagBindingTableName() . "`
+                 WHERE " . $this->getModelTableFkName() . " = " . $this->getOwner()->primaryKey;
+        if (isset($this->scope) && isset($this->scope['condition']) ? $this->scope['condition'] : '')
+            $sql .= " AND $this->tagBindingTableTagId in (
+                SELECT $this->tagTablePk
+                FROM $this->tagTable
+                WHERE " . $this->scope['condition'] . ")";
 
-		$conn = $this->getConnection();
-		$conn->createCommand(
-			sprintf(
-				"DELETE
-                 FROM `%s`
-                 WHERE %s = %d",
-				$this->getTagBindingTableName(),
-				$this->getModelTableFkName(),
-				$this->getOwner()->primaryKey
-			)
-		)->execute();
-	}
+        $conn = $this->getConnection();
+        $conn->createCommand($sql)->execute();
+    }
 	/**
 	 * Creates a tag.
 	 * Method is for future inheritance.
@@ -678,25 +679,18 @@ class ETaggableBehavior extends CActiveRecordBehavior {
 	 * @param int $count incremental ("1") or decremental ("-1") value.
 	 * @return void
 	 */
-	protected function updateCount($count) {
+    protected function updateCount($count) {
 		if($this->tagTableCount !== null){
-			$conn = $this->getConnection();
-			$conn->createCommand(
-				sprintf(
-					"UPDATE %s
-					SET %s = %s + %s
-					WHERE %s in (SELECT %s FROM %s WHERE %s = %d)",
-					$this->tagTable,
-					$this->tagTableCount,
-					$this->tagTableCount,
-					$count,
-					$this->tagTablePk,
-					$this->tagBindingTableTagId,
-					$this->getTagBindingTableName(),
-					$this->getModelTableFkName(),
-					$this->getOwner()->primaryKey
-				)
-			)->execute();
-		}
+            $conn = $this->getConnection();
+            $sql = "UPDATE $this->tagTable
+					SET $this->tagTableCount = $this->tagTableCount + $count
+                    WHERE $this->tagTablePk in (
+                        SELECT $this->tagBindingTableTagId
+                        FROM " . $this->getTagBindingTableName() . "
+                        WHERE " . $this->getModelTableFkName() . "=" . $this->getOwner()->primaryKey . ")";
+            if (isset($this->scope) && isset($this->scope['condition']) ? $this->scope['condition'] : '')
+                $sql .= " AND " . $this->scope['condition'];
+            $conn->createCommand($sql)->execute();
+        }
 	}
 }

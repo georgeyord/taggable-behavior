@@ -20,10 +20,13 @@ class EARTaggableBehavior extends ETaggableBehavior {
 	 * @param string $title tag title
 	 * @return CActiveRecord
 	 */
-    protected function createTag($title) {
+	protected function createTag($title) {
         $class = $this->tagModel;
         $tag = new $class();
         $tag->{$this->tagTableName} = $title;
+        foreach ($this->insertValues as $key => $value) {
+            $tag->{$key} = $value;
+        }
         $tag->save();
-    }
+	}
 }
