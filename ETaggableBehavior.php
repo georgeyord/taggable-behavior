@@ -379,15 +379,15 @@ class ETaggableBehavior extends CActiveRecordBehavior {
 
 					// if there is no existing tag, create one
 					if(!$tagId){
-						$this->createTag($tag);
+                                                $tagId = $this->createTag($tag);
 
 						// reset all tags cache
 						$this->resetAllTagsCache();
 						$this->resetAllTagsWithModelsCountCache();
 
-						$tagId = $this->getConnection()->getLastInsertID();
+						
 					}
-
+                                        
 					// bind tag to it's model
 					$result = $builder->createInsertCommand(
 						$this->getTagBindingTableName(),
@@ -396,7 +396,7 @@ class ETaggableBehavior extends CActiveRecordBehavior {
 							$this->tagBindingTableTagId => $tagId
 						)
 					)->execute();
-                    Yii::log("Rows: $result - Type: $type - Tag: $tag - Movie: ".$this->getOwner()->primaryKey);
+                                        Yii::log("Rows: $result - Type: $type - Tag: $tag - Movie: ".$this->getOwner()->primaryKey);
 				}
 				$this->updateCount(+1);
 			}
@@ -660,7 +660,6 @@ class ETaggableBehavior extends CActiveRecordBehavior {
 	 * @return void
 	 */
 	protected function createTag($tag) {
-
 		$builder = $this->getConnection()->getCommandBuilder();
 
 		$values = array(
@@ -670,8 +669,9 @@ class ETaggableBehavior extends CActiveRecordBehavior {
 			$values = array_merge($this->insertValues, $values);
 		}
 
-		$builder->createInsertCommand($this->tagTable, $values)->execute();
+		$result = $builder->createInsertCommand($this->tagTable, $values)->execute();
 
+                return $result?$this->getConnection()->getLastInsertID():null;
 	}
 	/**
 	 * Updates counter information in database.
