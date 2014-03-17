@@ -593,15 +593,21 @@ class ETaggableBehavior extends CActiveRecordBehavior {
 	 * @param string|array $tags
 	 * @return boolean
 	 */
-	public function hasTags($tags) {
-		$this->loadTags();
+    public function hasTags($tags=false) {
+        $this->loadTags();
 
-		$tags = $this->toTagsArray($tags);
-		foreach($tags as $tag){
-			if(!in_array($tag, $this->tags)) return false;
-		}
-		return true;
-	}
+        if($tags){
+           $tags = $this->toTagsArray($tags);
+            foreach($tags as $tag){
+                if(!in_array($tag, $this->tags)) return false;
+            }
+            return true;
+        }else{
+            $tags = array_filter($this->tags);
+            return !empty($tags);
+        }
+    }
+
 	/**
 	 * Alias of {@link hasTags()}.
 	 * @param string|array $tags
